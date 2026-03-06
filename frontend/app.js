@@ -8,92 +8,127 @@ let scene, camera, renderer, currentModel;
 
 function initThreeJS(containerId) {
     const container = document.getElementById(containerId);
-    if (!container) return;
-    
-    // Scene
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf0f0f0);
-    
-    // Camera
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
-    camera.position.z = 3;
-    
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
-    
-    // Lighting
-    const light1 = new THREE.DirectionalLight(0xffffff, 0.8);
-    light1.position.set(5, 5, 5);
-    scene.add(light1);
-    
-    const light2 = new THREE.AmbientLight(0xffffff, 0.4);
-    scene.add(light2);
-    
-    // Animation loop
-    function animate() {
-        requestAnimationFrame(animate);
-        
-        // Rotate model
-        if (currentModel) {
-            currentModel.rotation.x += 0.005;
-            currentModel.rotation.y += 0.01;
-        }
-        
-        renderer.render(scene, camera);
+    if (!container) {
+        console.error('Container not found:', containerId);
+        return;
     }
-    animate();
     
-    // Handle window resize
-    window.addEventListener('resize', () => {
-        const newWidth = container.clientWidth;
-        const newHeight = container.clientHeight;
-        camera.aspect = newWidth / newHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(newWidth, newHeight);
-    });
+    console.log('Initializing Three.js for container:', containerId);
+    
+    try {
+        // Scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0);
+        
+        // Camera
+        const width = container.clientWidth || 400;
+        const height = container.clientHeight || 400;
+        camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+        camera.position.z = 3;
+        
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        
+        // Clear container and add renderer
+        container.innerHTML = '';
+        container.appendChild(renderer.domElement);
+        
+        console.log('Renderer size:', width, 'x', height);
+        
+        // Lighting
+        const light1 = new THREE.DirectionalLight(0xffffff, 0.8);
+        light1.position.set(5, 5, 5);
+        scene.add(light1);
+        
+        const light2 = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(light2);
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotate model
+            if (currentModel) {
+                currentModel.rotation.x += 0.005;
+                currentModel.rotation.y += 0.01;
+            }
+            
+            renderer.render(scene, camera);
+        }
+        animate();
+        
+        console.log('Three.js initialized successfully!');
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const newWidth = container.clientWidth;
+            const newHeight = container.clientHeight;
+            if (newWidth > 0 && newHeight > 0) {
+                camera.aspect = newWidth / newHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(newWidth, newHeight);
+            }
+        });
+    } catch (error) {
+        console.error('Error initializing Three.js:', error);
+    }
 }
 
 function loadModel(modelUrl) {
-    if (!scene || !camera || !renderer) return;
+    if (!scene || !camera || !renderer) {
+        console.error('Three.js not initialized');
+        return;
+    }
+    
+    console.log('Attempting to load model from:', modelUrl);
     
     // Remove old model
     if (currentModel) {
         scene.remove(currentModel);
     }
     
-    // Load new model
-    const loader = new THREE.GLTFLoader();
-    loader.load(
-        modelUrl,
-        (gltf) => {
-            currentModel = gltf.scene;
-            
-            // Center and scale model
-            const box = new THREE.Box3().setFromObject(currentModel);
-            const center = box.getCenter(new THREE.Vector3());
-            currentModel.position.sub(center);
-            
-            const size = box.getSize(new THREE.Vector3());
-            const maxDim = Math.max(size.x, size.y, size.z);
-            const scale = 2.5 / maxDim;
-            currentModel.scale.multiplyScalar(scale);
-            
-            scene.add(currentModel);
-            console.log('Model loaded successfully!');
-        },
-        (progress) => {
-            console.log('Loading: ' + (progress.loaded / progress.total * 100) + '%');
-        },
-        (error) => {
-            console.error('Error loading model:', error);
-        }
-    );
+    // Create a placeholder shape while loading
+    const geometry = new THREE.BoxGeometry(1, 1, 1);
+    const material = new THREE.MeshPhongMaterial({ color: 0x667eea });
+    currentModel = new THREE.Mesh(geometry, material);
+    scene.add(currentModel);
+    
+    // Try to load the actual GLB file
+    try {
+        const loader = new THREE.GLTFLoader();
+        loader.load(
+            modelUrl,
+            (gltf) => {
+                console.log('Model loaded successfully!');
+                scene.remove(currentModel);
+                currentModel = gltf.scene;
+                
+                // Center and scale model
+                const box = new THREE.Box3().setFromObject(currentModel);
+                const center = box.getCenter(new THREE.Vector3());
+                currentModel.position.sub(center);
+                
+                const size = box.getSize(new THREE.Vector3());
+                const maxDim = Math.max(size.x, size.y, size.z);
+                const scale = 2.5 / maxDim;
+                currentModel.scale.multiplyScalar(scale);
+                
+                scene.add(currentModel);
+            },
+            (progress) => {
+                console.log('Loading: ' + ((progress.loaded / progress.total) * 100).toFixed(2) + '%');
+            },
+            (error) => {
+                console.warn('Could not load GLB file, showing placeholder:', error);
+                // Keep the placeholder shape visible
+            }
+        );
+    } catch (error) {
+        console.error('Error setting up loader:', error);
+        // Keep the placeholder shape visible
+    }
 }
 
 // 3D Model Viewer Component
