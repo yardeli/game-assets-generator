@@ -128,12 +128,17 @@ class ThreeDGenerator:
             # Create mesh
             mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
             
-            # Smooth and clean
-            mesh.smooth()
-            mesh.remove_unreferenced_vertices()
+            # Clean up
+            try:
+                mesh.remove_unreferenced_vertices()
+            except:
+                pass
             
             # Recenter
-            mesh.vertices -= mesh.centroid
+            try:
+                mesh.vertices -= mesh.centroid
+            except:
+                pass
             
             print("[OK] Mesh created!")
             return mesh
