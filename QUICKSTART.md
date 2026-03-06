@@ -6,7 +6,7 @@ Get Game Assets Generator running in **5 minutes**.
 
 ```bash
 # Clone
-git clone https://github.com/yourusername/game-assets-generator.git
+git clone https://github.com/yardeli/game-assets-generator.git
 cd game-assets-generator
 
 # Create virtual environment
@@ -28,8 +28,8 @@ nano .env
 ```
 
 **Required:**
-- `OPENAI_API_KEY` — Get from https://platform.openai.com
-- `MESHY_API_KEY` — Get from https://www.meshy.ai
+- `OPENAI_API_KEY=sk-...` — Get from https://platform.openai.com
+
 
 ## Step 3: Start Backend (1 min)
 

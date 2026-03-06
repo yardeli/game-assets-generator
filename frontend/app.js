@@ -29,9 +29,12 @@ function GameAssetsGenerator() {
         try {
             const response = await fetch(`${API_BASE}/styles`);
             const data = await response.json();
-            setStyles(data.styles);
+            const stylesList = data.styles || ["realistic", "stylized", "low-poly", "cartoon", "fantasy", "sci-fi"];
+            setStyles(stylesList);
         } catch (error) {
             console.error("Error loading styles:", error);
+            // Fallback to defaults
+            setStyles(["realistic", "stylized", "low-poly", "cartoon", "fantasy", "sci-fi"]);
         }
     }
 
@@ -39,9 +42,14 @@ function GameAssetsGenerator() {
         try {
             const response = await fetch(`${API_BASE}/formats`);
             const data = await response.json();
-            setFormats(data.formats);
+            const formatsList = Array.isArray(data.formats) 
+                ? data.formats.map(f => f.ext || f) 
+                : ["glb", "obj", "gltf", "fbx"];
+            setFormats(formatsList);
         } catch (error) {
             console.error("Error loading formats:", error);
+            // Fallback to defaults
+            setFormats(["glb", "obj", "gltf", "fbx"]);
         }
     }
 
@@ -76,9 +84,13 @@ function GameAssetsGenerator() {
         setLoading(true);
         
         try {
+            console.log("Generating asset with prompt:", prompt);
             const response = await fetch(`${API_BASE}/generate`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
                 body: JSON.stringify({
                     prompt: prompt,
                     style: style,
@@ -87,19 +99,25 @@ function GameAssetsGenerator() {
                 })
             });
 
-            const data = await response.json();
+            console.log("Response status:", response.status);
             
-            if (response.ok) {
-                setCurrentGeneration(data);
-                setGenerationHistory([data, ...generationHistory].slice(0, 10));
-                setPrompt("");
-                
-                // Poll for completion
-                pollGeneration(data.id);
-            } else {
-                alert("Error: " + data.detail);
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error("API error:", errorText);
+                throw new Error(`API returned ${response.status}: ${errorText}`);
             }
+
+            const data = await response.json();
+            console.log("Generation started:", data);
+            
+            setCurrentGeneration(data);
+            setGenerationHistory([data, ...generationHistory].slice(0, 10));
+            setPrompt("");
+            
+            // Poll for completion
+            pollGeneration(data.id);
         } catch (error) {
+            console.error("Full error:", error);
             alert("Error generating asset: " + error.message);
         } finally {
             setLoading(false);
@@ -221,9 +239,13 @@ function GameAssetsGenerator() {
                                             onChange={(e) => setStyle(e.target.value)}
                                             disabled={loading}
                                         >
-                                            {styles.map(s => (
-                                                <option key={s} value={s}>{s}</option>
-                                            ))}
+                                            {styles.length > 0 ? (
+                                                styles.map(s => (
+                                                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                                                ))
+                                            ) : (
+                                                <option value="">Loading styles...</option>
+                                            )}
                                         </select>
                                     </div>
 
@@ -236,9 +258,13 @@ function GameAssetsGenerator() {
                                             onChange={(e) => setFormat(e.target.value)}
                                             disabled={loading}
                                         >
-                                            {formats.map(f => (
-                                                <option key={f.ext} value={f.ext}>{f.name}</option>
-                                            ))}
+                                            <option value="">Select a format...</option>
+                                            {formats.map((f, idx) => {
+                                                const key = typeof f === 'string' ? f : (f.ext || idx);
+                                                const display = typeof f === 'string' ? f.toUpperCase() : f.name;
+                                                const value = typeof f === 'string' ? f : f.ext;
+                                                return <option key={key} value={value}>{display}</option>;
+                                            })}
                                         </select>
                                     </div>
 

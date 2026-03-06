@@ -1,0 +1,113 @@
+🎮 GAME ASSETS GENERATOR - SETUP & GET STARTED
+================================================
+
+Copy-paste these commands to get up and running in 5 minutes!
+
+STEP 1: Navigate to Project
+================================================
+cd C:\Users\yarden\.openclaw\workspace\game-assets-generator
+
+STEP 2: Create Virtual Environment
+================================================
+python -m venv venv
+venv\Scripts\activate
+
+STEP 3: Install Dependencies
+================================================
+pip install -r requirements.txt
+
+STEP 4: Setup Environment Variables
+================================================
+copy .env.example .env
+
+Then edit .env and add your API keys:
+- OPENAI_API_KEY=sk-... (from https://platform.openai.com)
+- MESHY_API_KEY=... (from https://www.meshy.ai)
+- ANTHROPIC_API_KEY=sk-ant-... (optional)
+
+STEP 5: Start Backend Server (Terminal 1)
+================================================
+cd backend
+python -m uvicorn main:app --reload --port 8000
+
+You should see:
+  Uvicorn running on http://127.0.0.1:8000
+
+STEP 6: Start Frontend Server (Terminal 2 - NEW TERMINAL!)
+================================================
+cd C:\Users\yarden\.openclaw\workspace\game-assets-generator
+cd frontend
+python -m http.server 3000
+
+You should see:
+  Serving HTTP on 0.0.0.0 port 3000
+
+STEP 7: Open in Browser
+================================================
+Go to: http://localhost:3000
+
+STEP 8: Try Your First Generation
+================================================
+1. Enter prompt: "A wooden sword with a dragon handle"
+2. Select style: "Realistic"
+3. Select format: "GLB"
+4. Click "Generate Asset"
+5. Wait for completion
+6. Download!
+
+TROUBLESHOOTING
+================================================
+
+Port already in use (8000 or 3000)?
+→ Change port: uvicorn main:app --port 8001
+
+ModuleNotFoundError?
+→ Re-run: pip install -r requirements.txt
+
+CORS errors?
+→ Make sure both servers are running (backend + frontend)
+
+Database issues?
+→ Delete assets.db and restart
+
+NEXT STEPS
+================================================
+
+✅ Read QUICKSTART.md for more details
+✅ Check README.md for feature overview
+✅ See DEPLOY.md to push to production
+✅ Add your Meshy API key to .env to enable real 3D generation
+
+QUICK REFERENCE
+================================================
+
+Backend API: http://localhost:8000
+Frontend: http://localhost:3000
+API Docs: http://localhost:8000/docs
+
+Database: assets.db (SQLite)
+Config: .env file
+
+COMMANDS QUICK COPY
+================================================
+
+# Full setup from scratch
+cd C:\Users\yarden\.openclaw\workspace\game-assets-generator
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+
+# Terminal 1: Backend
+cd backend
+python -m uvicorn main:app --reload --port 8000
+
+# Terminal 2: Frontend
+cd C:\Users\yarden\.openclaw\workspace\game-assets-generator\frontend
+python -m http.server 3000
+
+# Then open: http://localhost:3000
+
+================================================
+Questions? Check the README.md file!
+================================================

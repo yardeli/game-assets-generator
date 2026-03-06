@@ -1,21 +1,16 @@
 """
-Game Assets Generator - FastAPI Backend with CrewAI
-Converts text prompts to production-ready 3D gaming assets
+Game Assets Generator - Simplified Backend
 """
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional
 import sqlite3
-import json
-import os
+import uuid
 from datetime import datetime
-import asyncio
 from pathlib import Path
-
-# Import CrewAI crew
-from crew import GameAssetsCrew
 
 # Initialize FastAPI
 app = FastAPI(
@@ -32,6 +27,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve generated files
+Path("outputs").mkdir(exist_ok=True)
+app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 # Database setup
 DB_PATH = "./assets.db"
@@ -79,7 +78,7 @@ init_db()
 class GenerateRequest(BaseModel):
     prompt: str
     style: Optional[str] = "realistic"
-    format: Optional[str] = "glb"  # glb, obj, gltf
+    format: Optional[str] = "glb"
     user_id: Optional[str] = "default"
 
 class GenerationResponse(BaseModel):
@@ -89,38 +88,18 @@ class GenerationResponse(BaseModel):
     style: str
     created_at: str
 
-class AssetLibrary(BaseModel):
-    id: str
-    title: str
-    format: str
-    preview_url: str
-    created_at: str
-
-# Initialize CrewAI crew
-try:
-    crew = GameAssetsCrew()
-except Exception as e:
-    print(f"Warning: CrewAI not initialized: {e}")
-    crew = None
-
 # Routes
 @app.get("/api/health")
 async def health():
     """Health check"""
     return {
         "status": "healthy",
-        "service": "Game Assets Generator API",
-        "crewai": "available" if crew else "unavailable"
+        "service": "Game Assets Generator API"
     }
 
 @app.post("/api/generate", response_model=GenerationResponse)
 async def generate_asset(request: GenerateRequest, background_tasks: BackgroundTasks):
-    """
-    Generate a 3D gaming asset from text prompt
-    Uses CrewAI to orchestrate the generation pipeline
-    """
-    import uuid
-    
+    """Generate a 3D gaming asset from text prompt"""
     generation_id = str(uuid.uuid4())
     
     try:
@@ -136,15 +115,14 @@ async def generate_asset(request: GenerateRequest, background_tasks: BackgroundT
         conn.commit()
         conn.close()
         
-        # Start generation in background using CrewAI
-        if crew:
-            background_tasks.add_task(
-                process_generation,
-                generation_id,
-                request.prompt,
-                request.style,
-                request.format
-            )
+        # Start generation in background
+        background_tasks.add_task(
+            process_generation,
+            generation_id,
+            request.prompt,
+            request.style,
+            request.format
+        )
         
         return GenerationResponse(
             id=generation_id,
@@ -158,46 +136,55 @@ async def generate_asset(request: GenerateRequest, background_tasks: BackgroundT
         raise HTTPException(status_code=500, detail=str(e))
 
 async def process_generation(generation_id: str, prompt: str, style: str, format: str):
-    """
-    Process asset generation using CrewAI crew
-    This runs in background after returning to user
-    """
+    """Process asset generation using 3D pipeline"""
     try:
-        if not crew:
-            raise Exception("CrewAI not available")
+        # Use the real 3D generation pipeline
+        from generate_3d import get_generator
         
-        # Execute crew to generate asset
-        result = await asyncio.to_thread(
-            crew.execute_generation,
-            prompt=prompt,
-            style=style,
-            format=format,
-            generation_id=generation_id
-        )
+        generator = get_generator()
+        result = generator.generate(prompt, style, format, generation_id)
         
         # Update database with result
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        cursor.execute('''
-        UPDATE generations
-        SET status = ?, model_url = ?, completed_at = ?
-        WHERE id = ?
-        ''', ("completed", result.get("model_url", ""), datetime.now().isoformat(), generation_id))
+        if result["status"] == "completed":
+            cursor.execute('''
+            UPDATE generations
+            SET status = ?, model_url = ?, preview_url = ?, format = ?, completed_at = ?
+            WHERE id = ?
+            ''', (
+                "completed",
+                result["model_url"],
+                result["preview_url"],
+                format,
+                datetime.now().isoformat(),
+                generation_id
+            ))
+        else:
+            cursor.execute('''
+            UPDATE generations
+            SET status = ?, completed_at = ?
+            WHERE id = ?
+            ''', ("failed", datetime.now().isoformat(), generation_id))
         
         conn.commit()
         conn.close()
+        
+        print(f"[OK] Generation completed: {generation_id}")
         
     except Exception as e:
-        # Update status as failed
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute('''
-        UPDATE generations SET status = ? WHERE id = ?
-        ''', ("failed", generation_id))
-        conn.commit()
-        conn.close()
-        print(f"Generation failed: {e}")
+        print(f"[ERR] Generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute('UPDATE generations SET status = ? WHERE id = ?', ("failed", generation_id))
+            conn.commit()
+            conn.close()
+        except:
+            pass
 
 @app.get("/api/generation/{generation_id}")
 async def get_generation_status(generation_id: str):
