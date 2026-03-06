@@ -35,9 +35,22 @@ app.add_middleware(
     allow_origin_regex=".*localhost.*",
 )
 
-# Serve generated files
+# Serve generated files with CORS headers
 Path("outputs").mkdir(exist_ok=True)
-app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
+
+from fastapi.staticfiles import StaticFiles as OriginalStaticFiles
+from starlette.responses import FileResponse
+import mimetypes
+
+class CORSStaticFiles(OriginalStaticFiles):
+    async def file_response(self, full_path, stat_result, scope):
+        response = FileResponse(full_path, stat_result=stat_result)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+
+app.mount("/outputs", CORSStaticFiles(directory="outputs"), name="outputs")
 
 # Database setup
 DB_PATH = "./assets.db"
