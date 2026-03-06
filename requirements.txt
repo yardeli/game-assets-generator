@@ -9,11 +9,11 @@ sqlalchemy==2.0.25
 
 # AI/ML Models
 torch==2.1.0
-diffusers==0.24.0
 transformers==4.35.0
 scipy==1.11.0
 numpy==1.24.0
 
-# 3D Models
+# 3D Generation
 trimesh==3.17.0
 numpy-stl==3.0.1
+shap-e==0.1.1

@@ -19,13 +19,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS
+# Enable CORS - Explicitly allow localhost:3000
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex=".*localhost.*",
 )
 
 # Serve generated files
@@ -136,13 +143,17 @@ async def generate_asset(request: GenerateRequest, background_tasks: BackgroundT
         raise HTTPException(status_code=500, detail=str(e))
 
 async def process_generation(generation_id: str, prompt: str, style: str, format: str):
-    """Process asset generation using 3D pipeline"""
+    """Process asset generation using Shap-E"""
     try:
-        # Use the real 3D generation pipeline
-        from generate_3d import get_generator
+        print(f"\n[START] Generating 3D asset: {generation_id}")
+        print(f"        Prompt: {prompt}")
+        print(f"        Style: {style}")
+        
+        # Use Shap-E for 3D generation
+        from shape_e_gen import get_generator
         
         generator = get_generator()
-        result = generator.generate(prompt, style, format, generation_id)
+        result = generator.generate_3d(prompt, generation_id, format)
         
         # Update database with result
         conn = sqlite3.connect(DB_PATH)
@@ -155,23 +166,23 @@ async def process_generation(generation_id: str, prompt: str, style: str, format
             WHERE id = ?
             ''', (
                 "completed",
-                result["model_url"],
-                result["preview_url"],
+                result.get("model_url", ""),
+                result.get("preview_url", ""),
                 format,
                 datetime.now().isoformat(),
                 generation_id
             ))
+            print(f"[OK] Generation completed: {generation_id}")
         else:
             cursor.execute('''
             UPDATE generations
             SET status = ?, completed_at = ?
             WHERE id = ?
             ''', ("failed", datetime.now().isoformat(), generation_id))
+            print(f"[ERROR] Generation failed: {result.get('error', 'Unknown error')}")
         
         conn.commit()
         conn.close()
-        
-        print(f"[OK] Generation completed: {generation_id}")
         
     except Exception as e:
         print(f"[ERR] Generation failed: {e}")
