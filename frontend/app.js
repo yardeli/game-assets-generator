@@ -6,7 +6,37 @@ const API_BASE = "http://127.0.0.1:8001/api";
 // Three.js Setup
 let scene, camera, renderer, currentModel;
 
-function initThreeJS(containerId) {
+// Wait for THREE to be available
+function waitForTHREE() {
+    return new Promise((resolve) => {
+        if (typeof THREE !== 'undefined') {
+            console.log('THREE.js available');
+            resolve();
+            return;
+        }
+        
+        console.log('Waiting for THREE.js to load...');
+        const checkTHREE = setInterval(() => {
+            if (typeof THREE !== 'undefined') {
+                console.log('THREE.js loaded!');
+                clearInterval(checkTHREE);
+                resolve();
+            }
+        }, 100);
+        
+        // Timeout after 5 seconds
+        setTimeout(() => {
+            clearInterval(checkTHREE);
+            console.error('THREE.js failed to load after 5 seconds');
+            resolve(); // Resolve anyway to show placeholder
+        }, 5000);
+    });
+}
+
+async function initThreeJS(containerId) {
+    // Make sure THREE is available
+    await waitForTHREE();
+    
     const container = document.getElementById(containerId);
     if (!container) {
         console.error('Container not found:', containerId);
@@ -14,6 +44,11 @@ function initThreeJS(containerId) {
     }
     
     console.log('Initializing Three.js for container:', containerId);
+    
+    if (typeof THREE === 'undefined') {
+        console.error('THREE.js not available, cannot initialize');
+        return;
+    }
     
     try {
         // Scene
@@ -82,6 +117,11 @@ function loadModel(modelUrl) {
         return;
     }
     
+    if (typeof THREE === 'undefined') {
+        console.error('THREE is not defined');
+        return;
+    }
+    
     console.log('Attempting to load model from:', modelUrl);
     
     // Remove old model
@@ -96,7 +136,7 @@ function loadModel(modelUrl) {
     scene.add(currentModel);
     
     // Check if GLTFLoader is available
-    if (typeof THREE === 'undefined' || !THREE.GLTFLoader) {
+    if (!THREE.GLTFLoader) {
         console.warn('GLTFLoader not available, showing placeholder');
         return;
     }
@@ -142,12 +182,18 @@ function ModelViewer({ modelUrl }) {
     useEffect(() => {
         if (!modelUrl) return;
         
-        // Wait for container to exist, then initialize
-        const checkAndInit = () => {
-            const container = document.getElementById('model-viewer');
+        const init = async () => {
+            // Wait for container to exist
+            let container = document.getElementById('model-viewer');
+            let attempts = 0;
+            while (!container && attempts < 50) {
+                await new Promise(r => setTimeout(r, 100));
+                container = document.getElementById('model-viewer');
+                attempts++;
+            }
+            
             if (!container) {
-                console.warn('Waiting for model-viewer container...');
-                setTimeout(checkAndInit, 100);
+                console.error('Container never appeared');
                 return;
             }
             
@@ -155,17 +201,19 @@ function ModelViewer({ modelUrl }) {
             try {
                 // Initialize Three.js if not already done
                 if (!scene || !renderer) {
-                    initThreeJS('model-viewer');
+                    await initThreeJS('model-viewer');
                 }
                 
                 // Load the model
-                loadModel(modelUrl);
+                if (scene && renderer) {
+                    loadModel(modelUrl);
+                }
             } catch (error) {
                 console.error('Error in ModelViewer:', error);
             }
         };
         
-        checkAndInit();
+        init();
     }, [modelUrl]);
     
     return null;
@@ -191,17 +239,6 @@ function GameAssetsGenerator() {
         loadFormats();
         loadStats();
         loadAssets();
-        
-        // Initialize Three.js for model viewer
-        setTimeout(() => {
-            try {
-                if (!scene && !renderer) {
-                    initThreeJS('model-viewer');
-                }
-            } catch (error) {
-                console.error('Three.js initialization error:', error);
-            }
-        }, 500);
     }, []);
 
     async function loadStyles() {

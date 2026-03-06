@@ -9,11 +9,8 @@
 <body>
     <div id="root"></div>
     
-    <!-- Three.js from unpkg (most reliable) -->
-    <script src="https://unpkg.com/three@r128/build/three.min.js"></script>
-    
-    <!-- Three.js examples polyfill (for GLTFLoader and other loaders) -->
-    <script src="https://unpkg.com/three@r128/examples/js/loaders/GLTFLoader.js"></script>
+    <!-- Three.js from cdnjs (very reliable) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     
     <!-- React -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -22,7 +19,30 @@
     <!-- Babel (for JSX) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- App -->
-    <script type="text/babel" src="app.js"></script>
+    <!-- Three.js loaders (loaded AFTER Three.js) -->
+    <script>
+        function loadGLTFLoader() {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/three@r128/examples/js/loaders/GLTFLoader.js';
+            script.onload = function() {
+                console.log('GLTFLoader loaded successfully');
+                window.GLTFLoaderReady = true;
+            };
+            script.onerror = function() {
+                console.warn('Failed to load GLTFLoader');
+            };
+            document.head.appendChild(script);
+        }
+        
+        // Wait for THREE to be available
+        if (typeof THREE !== 'undefined') {
+            loadGLTFLoader();
+        } else {
+            window.addEventListener('load', loadGLTFLoader);
+        }
+    </script>
+    
+    <!-- App (loaded last, after all scripts) -->
+    <script type="text/babel" src="app.js" defer></script>
 </body>
 </html>
