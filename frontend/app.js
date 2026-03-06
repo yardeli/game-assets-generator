@@ -1,7 +1,126 @@
 const { useState, useEffect, useRef } = React;
 
 // API Base URL
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = "http://127.0.0.1:8001/api";
+
+// Three.js Setup
+let scene, camera, renderer, currentModel;
+
+function initThreeJS(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    
+    // Scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0f0f0);
+    
+    // Camera
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    camera.position.z = 3;
+    
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    container.innerHTML = '';
+    container.appendChild(renderer.domElement);
+    
+    // Lighting
+    const light1 = new THREE.DirectionalLight(0xffffff, 0.8);
+    light1.position.set(5, 5, 5);
+    scene.add(light1);
+    
+    const light2 = new THREE.AmbientLight(0xffffff, 0.4);
+    scene.add(light2);
+    
+    // Animation loop
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        // Rotate model
+        if (currentModel) {
+            currentModel.rotation.x += 0.005;
+            currentModel.rotation.y += 0.01;
+        }
+        
+        renderer.render(scene, camera);
+    }
+    animate();
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        const newWidth = container.clientWidth;
+        const newHeight = container.clientHeight;
+        camera.aspect = newWidth / newHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(newWidth, newHeight);
+    });
+}
+
+function loadModel(modelUrl) {
+    if (!scene || !camera || !renderer) return;
+    
+    // Remove old model
+    if (currentModel) {
+        scene.remove(currentModel);
+    }
+    
+    // Load new model
+    const loader = new THREE.GLTFLoader();
+    loader.load(
+        modelUrl,
+        (gltf) => {
+            currentModel = gltf.scene;
+            
+            // Center and scale model
+            const box = new THREE.Box3().setFromObject(currentModel);
+            const center = box.getCenter(new THREE.Vector3());
+            currentModel.position.sub(center);
+            
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.y, size.z);
+            const scale = 2.5 / maxDim;
+            currentModel.scale.multiplyScalar(scale);
+            
+            scene.add(currentModel);
+            console.log('Model loaded successfully!');
+        },
+        (progress) => {
+            console.log('Loading: ' + (progress.loaded / progress.total * 100) + '%');
+        },
+        (error) => {
+            console.error('Error loading model:', error);
+        }
+    );
+}
+
+// 3D Model Viewer Component
+function ModelViewer({ modelUrl }) {
+    useEffect(() => {
+        if (!modelUrl) return;
+        
+        setTimeout(() => {
+            try {
+                const container = document.getElementById('model-viewer');
+                if (!container) return;
+                
+                // Initialize Three.js if not already done
+                if (!scene || !renderer) {
+                    initThreeJS('model-viewer');
+                }
+                
+                // Load the model
+                loadModel(modelUrl);
+            } catch (error) {
+                console.error('Error in ModelViewer:', error);
+            }
+        }, 100);
+    }, [modelUrl]);
+    
+    return null;
+}
 
 // Main App Component
 function GameAssetsGenerator() {
@@ -23,6 +142,17 @@ function GameAssetsGenerator() {
         loadFormats();
         loadStats();
         loadAssets();
+        
+        // Initialize Three.js for model viewer
+        setTimeout(() => {
+            try {
+                if (!scene && !renderer) {
+                    initThreeJS('model-viewer');
+                }
+            } catch (error) {
+                console.error('Three.js initialization error:', error);
+            }
+        }, 500);
     }, []);
 
     async function loadStyles() {
@@ -284,13 +414,8 @@ function GameAssetsGenerator() {
                                 {currentGeneration && currentGeneration.complete ? (
                                     <div className="asset-preview">
                                         <h3>✅ Asset Generated!</h3>
-                                        <div className="preview-image">
-                                            <img 
-                                                src={currentGeneration.preview_url} 
-                                                alt="Preview"
-                                                onError={(e) => e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23f0f0f0' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='20'%3E3D Model Preview%3C/text%3E%3C/svg%3E"}
-                                            />
-                                        </div>
+                                        <div id="model-viewer" className="preview-image" style={{width: '100%', height: '400px', display: 'flex', justifyContent: 'center', alignItems: 'center'}} />
+                                        <ModelViewer modelUrl={currentGeneration.model_url} />
                                         <div className="asset-info">
                                             <p><strong>Format:</strong> {currentGeneration.format}</p>
                                             <p><strong>Status:</strong> {currentGeneration.status}</p>
