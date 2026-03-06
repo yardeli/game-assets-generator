@@ -95,6 +95,12 @@ function loadModel(modelUrl) {
     currentModel = new THREE.Mesh(geometry, material);
     scene.add(currentModel);
     
+    // Check if GLTFLoader is available
+    if (typeof THREE === 'undefined' || !THREE.GLTFLoader) {
+        console.warn('GLTFLoader not available, showing placeholder');
+        return;
+    }
+    
     // Try to load the actual GLB file
     try {
         const loader = new THREE.GLTFLoader();
@@ -136,11 +142,17 @@ function ModelViewer({ modelUrl }) {
     useEffect(() => {
         if (!modelUrl) return;
         
-        setTimeout(() => {
+        // Wait for container to exist, then initialize
+        const checkAndInit = () => {
+            const container = document.getElementById('model-viewer');
+            if (!container) {
+                console.warn('Waiting for model-viewer container...');
+                setTimeout(checkAndInit, 100);
+                return;
+            }
+            
+            console.log('Container found, initializing Three.js...');
             try {
-                const container = document.getElementById('model-viewer');
-                if (!container) return;
-                
                 // Initialize Three.js if not already done
                 if (!scene || !renderer) {
                     initThreeJS('model-viewer');
@@ -151,7 +163,9 @@ function ModelViewer({ modelUrl }) {
             } catch (error) {
                 console.error('Error in ModelViewer:', error);
             }
-        }, 100);
+        };
+        
+        checkAndInit();
     }, [modelUrl]);
     
     return null;
