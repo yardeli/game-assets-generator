@@ -1,0 +1,389 @@
+const { useState, useEffect, useRef } = React;
+
+// API Base URL
+const API_BASE = "http://localhost:8000/api";
+
+// Main App Component
+function GameAssetsGenerator() {
+    const [prompt, setPrompt] = useState("");
+    const [style, setStyle] = useState("realistic");
+    const [format, setFormat] = useState("glb");
+    const [loading, setLoading] = useState(false);
+    const [currentGeneration, setCurrentGeneration] = useState(null);
+    const [assets, setAssets] = useState([]);
+    const [stats, setStats] = useState(null);
+    const [styles, setStyles] = useState([]);
+    const [formats, setFormats] = useState([]);
+    const [activeTab, setActiveTab] = useState("generate");
+    const [generationHistory, setGenerationHistory] = useState([]);
+
+    // Load available styles and formats on mount
+    useEffect(() => {
+        loadStyles();
+        loadFormats();
+        loadStats();
+        loadAssets();
+    }, []);
+
+    async function loadStyles() {
+        try {
+            const response = await fetch(`${API_BASE}/styles`);
+            const data = await response.json();
+            setStyles(data.styles);
+        } catch (error) {
+            console.error("Error loading styles:", error);
+        }
+    }
+
+    async function loadFormats() {
+        try {
+            const response = await fetch(`${API_BASE}/formats`);
+            const data = await response.json();
+            setFormats(data.formats);
+        } catch (error) {
+            console.error("Error loading formats:", error);
+        }
+    }
+
+    async function loadStats() {
+        try {
+            const response = await fetch(`${API_BASE}/stats`);
+            const data = await response.json();
+            setStats(data);
+        } catch (error) {
+            console.error("Error loading stats:", error);
+        }
+    }
+
+    async function loadAssets() {
+        try {
+            const response = await fetch(`${API_BASE}/assets`);
+            const data = await response.json();
+            setAssets(data.assets || []);
+        } catch (error) {
+            console.error("Error loading assets:", error);
+        }
+    }
+
+    async function generateAsset(e) {
+        e.preventDefault();
+        
+        if (!prompt.trim()) {
+            alert("Please enter a prompt!");
+            return;
+        }
+
+        setLoading(true);
+        
+        try {
+            const response = await fetch(`${API_BASE}/generate`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    prompt: prompt,
+                    style: style,
+                    format: format,
+                    user_id: "default"
+                })
+            });
+
+            const data = await response.json();
+            
+            if (response.ok) {
+                setCurrentGeneration(data);
+                setGenerationHistory([data, ...generationHistory].slice(0, 10));
+                setPrompt("");
+                
+                // Poll for completion
+                pollGeneration(data.id);
+            } else {
+                alert("Error: " + data.detail);
+            }
+        } catch (error) {
+            alert("Error generating asset: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    async function pollGeneration(generationId) {
+        const maxAttempts = 60;
+        let attempts = 0;
+
+        const poll = async () => {
+            try {
+                const response = await fetch(`${API_BASE}/generation/${generationId}`);
+                const data = await response.json();
+                
+                if (data.status === "completed") {
+                    setCurrentGeneration({ ...data, complete: true });
+                    loadStats();
+                } else if (data.status === "failed") {
+                    alert("Generation failed!");
+                } else if (attempts < maxAttempts) {
+                    attempts++;
+                    setTimeout(poll, 2000); // Poll every 2 seconds
+                } else {
+                    alert("Generation timeout");
+                }
+            } catch (error) {
+                console.error("Poll error:", error);
+            }
+        };
+
+        poll();
+    }
+
+    async function saveAsset(generationId) {
+        const title = prompt(`Save as (asset name):`);
+        if (!title) return;
+
+        try {
+            const response = await fetch(`${API_BASE}/assets/${generationId}/save?title=${title}`, {
+                method: "POST"
+            });
+
+            if (response.ok) {
+                alert("Asset saved!");
+                loadAssets();
+            }
+        } catch (error) {
+            alert("Error saving asset: " + error.message);
+        }
+    }
+
+    return (
+        <div className="app-container">
+            {/* Header */}
+            <header className="header">
+                <h1>🎮 Game Assets Generator</h1>
+                <p>Convert text prompts into production-ready 3D gaming assets</p>
+            </header>
+
+            {/* Navigation Tabs */}
+            <nav className="tabs">
+                <button 
+                    className={`tab ${activeTab === "generate" ? "active" : ""}`}
+                    onClick={() => setActiveTab("generate")}
+                >
+                    ✨ Generate
+                </button>
+                <button 
+                    className={`tab ${activeTab === "library" ? "active" : ""}`}
+                    onClick={() => setActiveTab("library")}
+                >
+                    📚 Library
+                </button>
+                <button 
+                    className={`tab ${activeTab === "history" ? "active" : ""}`}
+                    onClick={() => setActiveTab("history")}
+                >
+                    📋 History
+                </button>
+                <button 
+                    className={`tab ${activeTab === "stats" ? "active" : ""}`}
+                    onClick={() => setActiveTab("stats")}
+                >
+                    📊 Stats
+                </button>
+            </nav>
+
+            {/* Main Content */}
+            <main className="main">
+                {/* Generate Tab */}
+                {activeTab === "generate" && (
+                    <section className="section">
+                        <div className="generate-layout">
+                            {/* Form */}
+                            <div className="form-panel">
+                                <h2>Create New Asset</h2>
+                                
+                                <form onSubmit={generateAsset}>
+                                    {/* Prompt Input */}
+                                    <div className="form-group">
+                                        <label htmlFor="prompt">📝 Describe your asset:</label>
+                                        <textarea
+                                            id="prompt"
+                                            value={prompt}
+                                            onChange={(e) => setPrompt(e.target.value)}
+                                            placeholder="E.g., A wooden sword with a dragon handle, fantasy style, worn leather grip"
+                                            rows="4"
+                                            disabled={loading}
+                                        />
+                                    </div>
+
+                                    {/* Style Selection */}
+                                    <div className="form-group">
+                                        <label htmlFor="style">🎨 Art Style:</label>
+                                        <select 
+                                            id="style" 
+                                            value={style} 
+                                            onChange={(e) => setStyle(e.target.value)}
+                                            disabled={loading}
+                                        >
+                                            {styles.map(s => (
+                                                <option key={s} value={s}>{s}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Format Selection */}
+                                    <div className="form-group">
+                                        <label htmlFor="format">📦 Export Format:</label>
+                                        <select 
+                                            id="format" 
+                                            value={format} 
+                                            onChange={(e) => setFormat(e.target.value)}
+                                            disabled={loading}
+                                        >
+                                            {formats.map(f => (
+                                                <option key={f.ext} value={f.ext}>{f.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Submit Button */}
+                                    <button 
+                                        type="submit" 
+                                        className="btn-primary"
+                                        disabled={loading}
+                                    >
+                                        {loading ? "Generating..." : "✨ Generate Asset"}
+                                    </button>
+                                </form>
+                            </div>
+
+                            {/* Preview */}
+                            <div className="preview-panel">
+                                {currentGeneration && currentGeneration.complete ? (
+                                    <div className="asset-preview">
+                                        <h3>✅ Asset Generated!</h3>
+                                        <div className="preview-image">
+                                            <img 
+                                                src={currentGeneration.preview_url} 
+                                                alt="Preview"
+                                                onError={(e) => e.target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect fill='%23f0f0f0' width='400' height='300'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-size='20'%3E3D Model Preview%3C/text%3E%3C/svg%3E"}
+                                            />
+                                        </div>
+                                        <div className="asset-info">
+                                            <p><strong>Format:</strong> {currentGeneration.format}</p>
+                                            <p><strong>Status:</strong> {currentGeneration.status}</p>
+                                        </div>
+                                        <div className="asset-actions">
+                                            <button className="btn-secondary" onClick={() => saveAsset(currentGeneration.id)}>
+                                                💾 Save to Library
+                                            </button>
+                                            <a href={currentGeneration.model_url} download className="btn-secondary">
+                                                ⬇️ Download
+                                            </a>
+                                        </div>
+                                    </div>
+                                ) : loading ? (
+                                    <div className="loading">
+                                        <div className="spinner"></div>
+                                        <p>🚀 Generating your asset...</p>
+                                        <p className="text-secondary">This may take a few moments</p>
+                                    </div>
+                                ) : (
+                                    <div className="placeholder">
+                                        <p>📦 Generated assets will appear here</p>
+                                        <p className="text-secondary">Enter a prompt and click Generate to create a new asset</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* Library Tab */}
+                {activeTab === "library" && (
+                    <section className="section">
+                        <h2>🎮 Asset Library</h2>
+                        {assets.length > 0 ? (
+                            <div className="asset-grid">
+                                {assets.map(asset => (
+                                    <div key={asset.id} className="asset-card">
+                                        <img src={asset.preview_url} alt={asset.title} />
+                                        <h3>{asset.title}</h3>
+                                        <p>{asset.format.toUpperCase()}</p>
+                                        <a href={asset.url} download className="btn-secondary">
+                                            ⬇️ Download
+                                        </a>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="empty-state">No saved assets yet. Generate and save some!</p>
+                        )}
+                    </section>
+                )}
+
+                {/* History Tab */}
+                {activeTab === "history" && (
+                    <section className="section">
+                        <h2>📋 Generation History</h2>
+                        {generationHistory.length > 0 ? (
+                            <div className="history-list">
+                                {generationHistory.map(gen => (
+                                    <div key={gen.id} className="history-item">
+                                        <div className="history-info">
+                                            <h4>{gen.prompt}</h4>
+                                            <p><strong>Style:</strong> {gen.style}</p>
+                                            <p><strong>Status:</strong> <span className={`badge ${gen.status}`}>{gen.status}</span></p>
+                                        </div>
+                                        {gen.complete && (
+                                            <div className="history-actions">
+                                                <button className="btn-secondary" onClick={() => saveAsset(gen.id)}>
+                                                    💾 Save
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="empty-state">No generation history yet.</p>
+                        )}
+                    </section>
+                )}
+
+                {/* Stats Tab */}
+                {activeTab === "stats" && (
+                    <section className="section">
+                        <h2>📊 Your Statistics</h2>
+                        {stats ? (
+                            <div className="stats-grid">
+                                <div className="stat-card">
+                                    <h3>Total Generations</h3>
+                                    <p className="stat-value">{stats.total_generations}</p>
+                                </div>
+                                <div className="stat-card">
+                                    <h3>Completed</h3>
+                                    <p className="stat-value">{stats.completed}</p>
+                                </div>
+                                <div className="stat-card">
+                                    <h3>Saved Assets</h3>
+                                    <p className="stat-value">{stats.saved_assets}</p>
+                                </div>
+                                <div className="stat-card">
+                                    <h3>Success Rate</h3>
+                                    <p className="stat-value">{stats.success_rate}%</p>
+                                </div>
+                            </div>
+                        ) : (
+                            <p>Loading stats...</p>
+                        )}
+                    </section>
+                )}
+            </main>
+
+            {/* Footer */}
+            <footer className="footer">
+                <p>🎮 Game Assets Generator — Create production-ready 3D assets with AI</p>
+            </footer>
+        </div>
+    );
+}
+
+// Render app
+ReactDOM.createRoot(document.getElementById('root')).render(<GameAssetsGenerator />);
